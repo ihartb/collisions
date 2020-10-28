@@ -109,17 +109,59 @@ public class PrismManager : MonoBehaviour
 
     private IEnumerable<PrismCollision> PotentialCollisions()
     {
-        for (int i = 0; i < prisms.Count; i++) {
-            for (int j = i + 1; j < prisms.Count; j++) {
-                var checkPrisms = new PrismCollision();
-                checkPrisms.a = prisms[i];
-                checkPrisms.b = prisms[j];
+        var sweepX = new List<Tuple<float, Prism>>();
+        for (int i = 0; i < prisms.Count; i++)
+        {
+            Prism shape = prisms[i];
+            shape.min = new Vector3(shape.points.Min(p => p.x), 0, shape.points.Min(p=> p.z));
+            shape.max = new Vector3(shape.points.Max(p => p.x), 0, shape.points.Max(p => p.z));
 
-                yield return checkPrisms;
+            sweepX.Add(new Tuple<float, Prism>(shape.min.x, shape));
+            sweepX.Add(new Tuple<float, Prism>(shape.max.x, shape));
+        }
+
+        sweepX = sweepX.OrderBy(pairing => pairing.Item1).ToList();
+
+        var active = new HashSet<Prism>();
+        foreach (var pair in sweepX)
+        {
+            if (active.Contains(pair.Item2))
+            {
+                active.Remove(pair.Item2);
+                foreach (var shape in active)
+                {
+                    if (IntersectingZ(pair.Item2, shape))
+                    {
+                        //Debug.DrawLine(pair.Item2.transform.position, shape.transform.position, Color.cyan, UPDATE_RATE);
+                        var checkPrisms = new PrismCollision();
+                        checkPrisms.a = pair.Item2;
+                        checkPrisms.b = shape;
+
+                        yield return checkPrisms;
+                    }
+                }
+            }
+            else
+            {
+                active.Add(pair.Item2);
             }
         }
 
+        //for (int i = 0; i < prisms.Count; i++) {
+        //    for (int j = i + 1; j < prisms.Count; j++) {
+        //        var checkPrisms = new PrismCollision();
+        //        checkPrisms.a = prisms[i];
+        //        checkPrisms.b = prisms[j];
+
+        //        yield return checkPrisms;
+        //    }
+        //}
         yield break;
+    }
+
+    private bool IntersectingZ(Prism a, Prism b)
+    {
+        return (a.max.z > b.min.z && a.min.z < b.max.z) || (b.max.z > a.min.z && b.min.z < a.max.z);
     }
 
     private bool CheckCollision(PrismCollision collision)
@@ -208,7 +250,6 @@ public class PrismManager : MonoBehaviour
             }
         }
     }
-
     #endregion
 
     #region Utility Classes

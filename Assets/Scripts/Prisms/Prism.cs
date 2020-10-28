@@ -8,5 +8,6 @@ public class Prism : MonoBehaviour
     public Vector3[] points;
     public float midY, height;
 
+    public Vector3 min, max;
     public GameObject prismObject;
 }
