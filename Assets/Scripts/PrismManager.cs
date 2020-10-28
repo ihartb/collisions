@@ -109,9 +109,8 @@ public class PrismManager : MonoBehaviour
 
     private IEnumerable<PrismCollision> PotentialCollisions()
     {
-        Debug.DrawLine(Vector3.zero, Vector3.zero + Vector3.up*3, Color.red, UPDATE_RATE);
-
         var sortedXValues = new List<Tuple<float, Prism>>();
+
         //find the min and max points of the AABB for each prism 
         for (int i = 0; i < prisms.Count; i++)
         {
@@ -139,7 +138,6 @@ public class PrismManager : MonoBehaviour
                 {
                     if (IntersectingZ(pair.Item2, shape)) //y values overlap so AABB intersect --> potential collision
                     {
-                        Debug.DrawLine(pair.Item2.transform.position, shape.transform.position, Color.cyan, UPDATE_RATE);
                         var checkPrisms = new PrismCollision();
                         checkPrisms.a = pair.Item2;
                         checkPrisms.b = shape;
@@ -153,16 +151,6 @@ public class PrismManager : MonoBehaviour
                 active.Add(pair.Item2);
             }
         }
-
-        //for (int i = 0; i < prisms.Count; i++) {
-        //    for (int j = i + 1; j < prisms.Count; j++) {
-        //        var checkPrisms = new PrismCollision();
-        //        checkPrisms.a = prisms[i];
-        //        checkPrisms.b = prisms[j];
-
-        //        yield return checkPrisms;
-        //    }
-        //}
         yield break;
     }
 
@@ -176,6 +164,7 @@ public class PrismManager : MonoBehaviour
         var prismA = collision.a;
         var prismB = collision.b;
         collision.penetrationDepthVectorAB = Vector3.zero;
+
         var minkDiff = minkowskiDifference(prismA, prismB);
 
         var simplex = new List<Vector3>();
@@ -183,16 +172,98 @@ public class PrismManager : MonoBehaviour
         simplex.Add(minkDiff.Where(p => p != simplex[0]).Aggregate((p1, p2) => p1.x > p2.x ? p1 : p2));
         var intersecting = GJKAlgo(minkDiff, simplex);
 
+        if (intersecting)
+        {
+            collision.penetrationDepthVectorAB = EPAAlgo(minkDiff, simplex);
+            //Debug.DrawLine(prismA.transform.position, prismB.transform.position - tan, Color.magenta, UPDATE_RATE);
+        }
+
         return intersecting;
     }
 
+    private Vector3 EPAAlgo(List<Vector3>minkDiff, List<Vector3> simplex)
+    {
+        if (PointToLine(simplex[0], simplex[1], simplex[2]) > 0) //consistency of CC or clockwise 
+        {
+            var temp = simplex[0];
+            simplex[0] = simplex[1];
+            simplex[1] = temp;
+        }
+
+        var distToSegments = new List<float>(); //list of distance from each segment to origin
+
+        for (int i = 0; i < simplex.Count; i++) //populate distToSegments
+        {
+            var a = simplex[i];
+            var b = simplex[(i + 1) % simplex.Count];
+            //Debug.DrawLine(a, b, Color.magenta, UPDATE_RATE);
+            distToSegments.Add(Mathf.Abs(PointToLine(Vector3.zero, a, b)));
+        }
+
+        var minIndex = MinIndex(distToSegments);
+        var minDist = distToSegments[minIndex];
+        for (int k = 0; k < 10; k++)
+        {
+            //find point along line perpendicular to two points thats closest to origin 
+            var dir = simplex[(minIndex + 1) % simplex.Count] - simplex[minIndex];
+            var tangent = Vector3.Cross(dir, Vector3.up);
+            var orientation = -Mathf.Sign(Vector3.Dot(tangent, simplex[minIndex])); //if i make -simplex[minIndex] we dont get the minimum!
+            var supportAxis = tangent * orientation;
+            var supportPoint = minkDiff.Aggregate((p1, p2) =>
+                Vector3.Dot(p1, supportAxis) > Vector3.Dot(p2, supportAxis) ? p1 : p2);
+
+            if (simplex.Contains(supportPoint))
+            {
+                print("break");
+                break;
+            }
+            else //ISSUE NEVER GOES HERE, ALWAYS BREAKS!
+            {
+                print("new min");
+                var ind = (minIndex + 1) % simplex.Count;
+                simplex.Insert(ind, supportPoint);
+                distToSegments.Insert(ind, float.MaxValue);
+
+                minIndex = MinIndex(distToSegments);
+                for (int j = minIndex; j <= minIndex; j++)
+                {
+                    var a = simplex[j];
+                    var b = simplex[(j + 1) % simplex.Count];
+                    distToSegments[(j % simplex.Count)] = Mathf.Abs(PointToLine(Vector3.zero, a, b));
+                }
+
+                minIndex = MinIndex(distToSegments);
+                minDist = distToSegments[minIndex];
+            }
+        }
+
+        return PointToLineTangent(Vector3.zero, simplex[minIndex], simplex[(minIndex + 1) % simplex.Count]);
+    }
+
+    private int MinIndex(List<float> vals)
+    {
+        int pos = 0;
+        for (int i = 0; i < vals.Count; i++)
+        {
+            if (vals[i] < vals[pos]) { pos = i; }
+        }
+
+        return pos;
+    }
     private float PointToLine(Vector3 p1, Vector3 p2, Vector3 p3)
     {
         var res = Mathf.Sign(Vector3.Dot(
-                    Vector3.Cross(p2 - p1, Vector3.up), p3 - p1));
+                    Vector3.Cross(p3 - p2, Vector3.up), p1 - p2));
         return res;
     }
-
+    private Vector3 PointToLineTangent(Vector3 p1, Vector3 p2, Vector3 p3)
+    {
+        var vect = p1 - p2;
+        var dir = p3 - p2;
+        var tangent = Vector3.Cross(dir, Vector3.up).normalized;
+        var res = Vector3.Dot(vect, tangent) / (vect.magnitude) * vect.magnitude;
+        return res * tangent;
+    }
     private bool GJKAlgo(List<Vector3> minkDiff, List<Vector3> simplex)
     {
         var intersecting = false;
@@ -256,6 +327,7 @@ public class PrismManager : MonoBehaviour
             {
                 var res = p1 - p2;
                 minkDiff.Add(res);
+                //Debug.DrawLine(Vector3.zero, Vector3.zero + Vector3.up * 3, Color.red, UPDATE_RATE);
                 //Debug.DrawLine(res, res + Vector3.up * 3, Color.yellow, UPDATE_RATE);
             }
         }
