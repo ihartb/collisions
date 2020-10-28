@@ -1,6 +1,6 @@
 # TODO
 - [x] BROAD PHASE
-- [ ] GJK
+- [x] GJK
 - [ ] EPA
 
 

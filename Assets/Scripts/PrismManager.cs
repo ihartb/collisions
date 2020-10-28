@@ -109,30 +109,37 @@ public class PrismManager : MonoBehaviour
 
     private IEnumerable<PrismCollision> PotentialCollisions()
     {
-        var sweepX = new List<Tuple<float, Prism>>();
+        Debug.DrawLine(Vector3.zero, Vector3.zero + Vector3.up*3, Color.red, UPDATE_RATE);
+
+        var sortedXValues = new List<Tuple<float, Prism>>();
+        //find the min and max points of the AABB for each prism 
         for (int i = 0; i < prisms.Count; i++)
         {
             Prism shape = prisms[i];
             shape.min = new Vector3(shape.points.Min(p => p.x), 0, shape.points.Min(p=> p.z));
             shape.max = new Vector3(shape.points.Max(p => p.x), 0, shape.points.Max(p => p.z));
 
-            sweepX.Add(new Tuple<float, Prism>(shape.min.x, shape));
-            sweepX.Add(new Tuple<float, Prism>(shape.max.x, shape));
+            //add the min x and max x values to sort & sweep list
+            sortedXValues.Add(new Tuple<float, Prism>(shape.min.x, shape));
+            sortedXValues.Add(new Tuple<float, Prism>(shape.max.x, shape));
         }
 
-        sweepX = sweepX.OrderBy(pairing => pairing.Item1).ToList();
+        //sort the x values in list
+        sortedXValues = sortedXValues.OrderBy(pairing => pairing.Item1).ToList();
 
         var active = new HashSet<Prism>();
-        foreach (var pair in sweepX)
+        foreach (var pair in sortedXValues) //sweep to find potential collisions
+
         {
-            if (active.Contains(pair.Item2))
+            if (active.Contains(pair.Item2)) //if we reach the max x value of a prism
             {
                 active.Remove(pair.Item2);
-                foreach (var shape in active)
+                // check all prisms in active list and see if y values overlap with 
+                foreach (var shape in active) 
                 {
-                    if (IntersectingZ(pair.Item2, shape))
+                    if (IntersectingZ(pair.Item2, shape)) //y values overlap so AABB intersect --> potential collision
                     {
-                        //Debug.DrawLine(pair.Item2.transform.position, shape.transform.position, Color.cyan, UPDATE_RATE);
+                        Debug.DrawLine(pair.Item2.transform.position, shape.transform.position, Color.cyan, UPDATE_RATE);
                         var checkPrisms = new PrismCollision();
                         checkPrisms.a = pair.Item2;
                         checkPrisms.b = shape;
@@ -141,7 +148,7 @@ public class PrismManager : MonoBehaviour
                     }
                 }
             }
-            else
+            else //min x value, add to active list
             {
                 active.Add(pair.Item2);
             }
@@ -168,11 +175,91 @@ public class PrismManager : MonoBehaviour
     {
         var prismA = collision.a;
         var prismB = collision.b;
-
-        
         collision.penetrationDepthVectorAB = Vector3.zero;
+        var minkDiff = minkowskiDifference(prismA, prismB);
 
-        return true;
+        var simplex = new List<Vector3>();
+        simplex.Add(minkDiff.Aggregate((p1, p2) => p1.x < p2.x ? p1 : p2));
+        simplex.Add(minkDiff.Where(p => p != simplex[0]).Aggregate((p1, p2) => p1.x > p2.x ? p1 : p2));
+        var intersecting = GJKAlgo(minkDiff, simplex);
+
+        return intersecting;
+    }
+
+    private float PointToLine(Vector3 p1, Vector3 p2, Vector3 p3)
+    {
+        var res = Mathf.Sign(Vector3.Dot(
+                    Vector3.Cross(p2 - p1, Vector3.up), p3 - p1));
+        return res;
+    }
+
+    private bool GJKAlgo(List<Vector3> minkDiff, List<Vector3> simplex)
+    {
+        var intersecting = false;
+        do
+        {
+            if (simplex.Count == 3) //check if convex hull (triangle) contains origin
+            {
+                var simplexOrientation = Mathf.Sign(Vector3.Dot(
+                    Vector3.Cross(simplex[1] - simplex[0], Vector3.up), simplex[2] - simplex[0]));
+
+                var containsOrigin = true;
+                Vector3? removePoint = null;
+                for (int i = 0; i < 3; i++)
+                {
+                    var a = simplex[i];
+                    var b = simplex[(i + 1) % 3];
+                    var temp = Mathf.Sign(Vector3.Dot(
+                        Vector3.Cross(b - a, Vector3.up), Vector3.zero - a));
+
+                    if (temp != simplexOrientation)
+                    {
+                        containsOrigin = false;
+                        removePoint = simplex[(i + 2) % 3];
+                        break;
+                    }
+                }
+                if (containsOrigin)
+                {
+                    intersecting = true;
+                    break;
+                }
+                else if (removePoint.HasValue) //does not contain origin, remove point that is useless
+                {
+                    simplex.Remove(removePoint.Value);
+                }
+            }
+
+            var dir = simplex[1] - simplex[0];
+            var tangent = Vector3.Cross(dir, Vector3.up);
+            var orientation = Mathf.Sign(Vector3.Dot(tangent, -simplex[0]));
+            var supportAxis = tangent * orientation;
+            var supportPoint = minkDiff.Aggregate((p1, p2) =>
+                Vector3.Dot(p1, supportAxis) > Vector3.Dot(p2, supportAxis) ? p1 : p2);
+
+            if (!simplex.Contains(supportPoint))
+            {
+                simplex.Add(supportPoint);
+            }
+
+        } while (simplex.Count == 3);
+
+        return intersecting;
+    }
+
+    private List<Vector3> minkowskiDifference(Prism a, Prism b)
+    {
+        var minkDiff = new List<Vector3>();
+        foreach (var p1 in a.points)
+        {
+            foreach (var p2 in b.points)
+            {
+                var res = p1 - p2;
+                minkDiff.Add(res);
+                //Debug.DrawLine(res, res + Vector3.up * 3, Color.yellow, UPDATE_RATE);
+            }
+        }
+        return minkDiff;
     }
     
     #endregion
