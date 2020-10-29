@@ -207,27 +207,26 @@ public class PrismManager : MonoBehaviour
             //find point along line perpendicular to two points thats closest to origin 
             var dir = simplex[(minIndex + 1) % simplex.Count] - simplex[minIndex];
             var tangent = Vector3.Cross(dir, Vector3.up);
-            var orientation = -Mathf.Sign(Vector3.Dot(tangent, simplex[minIndex])); //if i make -simplex[minIndex] we dont get the minimum!
+            var orientation = -Mathf.Sign(Vector3.Dot(tangent, -simplex[minIndex]));
             var supportAxis = tangent * orientation;
             var supportPoint = minkDiff.Aggregate((p1, p2) =>
                 Vector3.Dot(p1, supportAxis) > Vector3.Dot(p2, supportAxis) ? p1 : p2);
 
             if (simplex.Contains(supportPoint))
             {
-                print("break");
+                //print("break");
                 break;
             }
-            else //ISSUE NEVER GOES HERE, ALWAYS BREAKS!
+            else
             {
-                print("new min");
+                //print("new min");
                 var ind = (minIndex + 1) % simplex.Count;
                 simplex.Insert(ind, supportPoint);
                 distToSegments.Insert(ind, float.MaxValue);
-
                 minIndex = MinIndex(distToSegments);
-                for (int j = minIndex; j <= minIndex; j++)
+                for (int j = minIndex; j <= minIndex+1; j++)
                 {
-                    var a = simplex[j];
+                    var a = simplex[j % simplex.Count];
                     var b = simplex[(j + 1) % simplex.Count];
                     distToSegments[(j % simplex.Count)] = Mathf.Abs(PointToLine(Vector3.zero, a, b));
                 }
@@ -252,8 +251,7 @@ public class PrismManager : MonoBehaviour
     }
     private float PointToLine(Vector3 p1, Vector3 p2, Vector3 p3)
     {
-        var res = Mathf.Sign(Vector3.Dot(
-                    Vector3.Cross(p3 - p2, Vector3.up), p1 - p2));
+        var res = Vector3.Dot(Vector3.Cross(p3 - p2, Vector3.up), p1 - p2);
         return res;
     }
     private Vector3 PointToLineTangent(Vector3 p1, Vector3 p2, Vector3 p3)
@@ -261,7 +259,7 @@ public class PrismManager : MonoBehaviour
         var vect = p1 - p2;
         var dir = p3 - p2;
         var tangent = Vector3.Cross(dir, Vector3.up).normalized;
-        var res = Vector3.Dot(vect, tangent) / (vect.magnitude) * vect.magnitude;
+        var res = Vector3.Dot(vect, tangent) / (vect.magnitude) * vect.magnitude*(-1.25f);
         return res * tangent;
     }
     private bool GJKAlgo(List<Vector3> minkDiff, List<Vector3> simplex)
