@@ -59,7 +59,7 @@ public class PrismManager : MonoBehaviour
 
         StartCoroutine(Run());
     }
-    
+
     void Update()
     {
         #region Visualization
@@ -111,7 +111,7 @@ public class PrismManager : MonoBehaviour
     {
         var sortedXValues = new List<Tuple<float, Prism>>();
 
-        //find the min and max points of the AABB for each prism 
+        //find the min and max points of the AABB for each prism
         for (int i = 0; i < prisms.Count; i++)
         {
             Prism shape = prisms[i];
@@ -133,8 +133,8 @@ public class PrismManager : MonoBehaviour
             if (active.Contains(pair.Item2)) //if we reach the max x value of a prism
             {
                 active.Remove(pair.Item2);
-                // check all prisms in active list and see if y values overlap with 
-                foreach (var shape in active) 
+                // check all prisms in active list and see if y values overlap with
+                foreach (var shape in active)
                 {
                     if (IntersectingZ(pair.Item2, shape)) //y values overlap so AABB intersect --> potential collision
                     {
@@ -183,7 +183,7 @@ public class PrismManager : MonoBehaviour
 
     private Vector3 EPAAlgo(List<Vector3>minkDiff, List<Vector3> simplex)
     {
-        if (PointToLine(simplex[0], simplex[1], simplex[2]) > 0) //consistency of CC or clockwise 
+        if (PointToLine(simplex[0], simplex[1], simplex[2]) > 0) //consistency of CC or clockwise
         {
             var temp = simplex[0];
             simplex[0] = simplex[1];
@@ -204,7 +204,7 @@ public class PrismManager : MonoBehaviour
         var minDist = distToSegments[minIndex];
         for (int k = 0; k < 10; k++)
         {
-            //find point along line perpendicular to two points thats closest to origin 
+            //find point along line perpendicular to two points thats closest to origin
             var dir = simplex[(minIndex + 1) % simplex.Count] - simplex[minIndex];
             var tangent = Vector3.Cross(dir, Vector3.up);
             var orientation = -Mathf.Sign(Vector3.Dot(tangent, -simplex[minIndex]));
@@ -269,19 +269,13 @@ public class PrismManager : MonoBehaviour
         {
             if (simplex.Count == 3) //check if convex hull (triangle) contains origin
             {
-                var simplexOrientation = Mathf.Sign(Vector3.Dot(
-                    Vector3.Cross(simplex[1] - simplex[0], Vector3.up), simplex[2] - simplex[0]));
-
-                var containsOrigin = true;
+                float simplexOrientation = getOrientation(simplex[0], simplex[1], Vector3.up, simplex[2]);
+                bool containsOrigin = true;
                 Vector3? removePoint = null;
                 for (int i = 0; i < 3; i++)
                 {
-                    var a = simplex[i];
-                    var b = simplex[(i + 1) % 3];
-                    var temp = Mathf.Sign(Vector3.Dot(
-                        Vector3.Cross(b - a, Vector3.up), Vector3.zero - a));
-
-                    if (temp != simplexOrientation)
+                    if (getOrientation(simplex[i], simplex[(i + 1) % 3], Vector3.up, Vector3.zero)
+                        != simplexOrientation)
                     {
                         containsOrigin = false;
                         removePoint = simplex[(i + 2) % 3];
@@ -298,11 +292,8 @@ public class PrismManager : MonoBehaviour
                     simplex.Remove(removePoint.Value);
                 }
             }
-
-            var dir = simplex[1] - simplex[0];
-            var tangent = Vector3.Cross(dir, Vector3.up);
-            var orientation = Mathf.Sign(Vector3.Dot(tangent, -simplex[0]));
-            var supportAxis = tangent * orientation;
+            float orientation = getOrientation(simplex[0], simplex[1], Vector3.up, Vector3.zero);
+            Vector3 supportAxis = Vector3.Cross(simplex[1] - simplex[0], Vector3.up) * orientation;
             var supportPoint = minkDiff.Aggregate((p1, p2) =>
                 Vector3.Dot(p1, supportAxis) > Vector3.Dot(p2, supportAxis) ? p1 : p2);
 
@@ -314,6 +305,30 @@ public class PrismManager : MonoBehaviour
         } while (simplex.Count == 3);
 
         return intersecting;
+    }
+
+    private float getOrientation(Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+    {
+        var orientation = Mathf.Sign(
+                            Vector3.Dot(
+                            Vector3.Cross(b - a, c),
+                            d - a)
+        );
+        return orientation;
+    }
+
+    private bool isInsideTriangle(Vector3 p, Vector3 s3, Vector3 s1, Vector3 s2)
+    {
+        var a = Vector3.Cross(s2 - s1, p - s1);
+        var b = Vector3.Cross(s2 - s1, s3 - s1);
+        return (Vector3.Dot(a, b) >= 0);
+    }
+
+    private Vector3 SupportAxisTowardsOrigin(Vector3 s1, Vector3 s2)
+    {
+        var perpendicular = Vector3.Cross(s2-s1, Vector3.up);
+        var towardOrigin = Mathf.Sign(Vector3.Dot(perpendicular, -s1));
+        return perpendicular * towardOrigin;
     }
 
     private List<Vector3> minkowskiDifference(Prism a, Prism b)
@@ -331,11 +346,11 @@ public class PrismManager : MonoBehaviour
         }
         return minkDiff;
     }
-    
+
     #endregion
 
     #region Private Functions
-    
+
     private void ResolveCollision(PrismCollision collision)
     {
         var prismObjA = collision.a.prismObject;
@@ -357,7 +372,7 @@ public class PrismManager : MonoBehaviour
 
         Debug.DrawLine(prismObjA.transform.position, prismObjA.transform.position + collision.penetrationDepthVectorAB, Color.cyan, UPDATE_RATE);
     }
-    
+
     #endregion
 
     #region Visualization Functions
@@ -365,7 +380,7 @@ public class PrismManager : MonoBehaviour
     private void DrawPrismRegion()
     {
         var points = new Vector3[] { new Vector3(1, 0, 1), new Vector3(1, 0, -1), new Vector3(-1, 0, -1), new Vector3(-1, 0, 1) }.Select(p => p * prismRegionRadiusXZ).ToArray();
-        
+
         var yMin = -prismRegionRadiusY;
         var yMax = prismRegionRadiusY;
 
