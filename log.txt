@@ -1,0 +1,12 @@
+536791f was Seth, 54 seconds ago, message: final changes for demo video
+33da3c6 was Seth, 17 minutes ago, message: cleaned up GJK and camera
+2f9ad6b was ihartb, 6 hours ago, message: convert to webgl
+54f21ef was ihartb, 6 hours ago, message: convert to webGL
+c54d8b8 was ihartb, 3 days ago, message: fixed some issues?
+cc72ac1 was ihartb, 4 days ago, message: scene
+7d52df8 was ihartb, 4 days ago, message: EPA done
+0401ec7 was ihartb, 4 days ago, message: gjk complete
+96a9199 was ihartb, 4 days ago, message: broad phase complete
+73f2127 was ihartb, 5 days ago, message: gitignore
+fbb7cab was Samuel S. Sohn, 3 weeks ago, message: Fixed bug with irregular prisms
+efd6953 was Samuel S. Sohn, 3 weeks ago, message: init commit
